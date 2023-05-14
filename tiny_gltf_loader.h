@@ -108,7 +108,20 @@ namespace tinygltf {
   } Mesh; 
 
   class Node{
-    publiv
+
+    public :
+      Node(){}
+      ~Node(){}
+
+      std::string camera ; // camera object refrenced by this node.
+      std::string name;
+      std::vector<std::string> children;
+      std::vector<double> rotation;       //length must be 0 or 4
+      std::vector<double> scale;          //length must be 0 or 3
+      std::vector<double> translation;    //length must be 0 or 3
+      std::vector<double> matrix;         //length must be 0 or 16
+      std::vector<std::string> meshes;
+
   };
 
 }
