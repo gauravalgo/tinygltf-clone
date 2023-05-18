@@ -164,7 +164,8 @@ namespace tinygltf {
                         const std::string &filename);
   };
 
-}//namespace tinygltf
+}
+//namespace tinygltf
 
 #ifdef TINYGLTF_LOADER_IMPLEMENTATION
 #include <sstream>
@@ -205,7 +206,7 @@ namespace {
     std::string s(str);
     delete[] str;
     return s;
-  }
+  
 #else
 #if TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
   //NO EXPANSION
@@ -542,11 +543,531 @@ bool ParseStringArrayProperty(std::vector<std::string> &ret,std::string &err,
       }
       ret.clear();
       const picojson::array &arr = it->second.get<picojson::array>();
-      for(size_t i=0)
+      for(size_t i=0;i< arr.size();i++)
+      {
+        if(!arr[i].is<std::string>()){
+          if(required){
+            err += "'" + property + "' property is not a string.\n";
+          }
+          return false;
+        }
+        ret.push_back(arr[i].get<std::string>());
+      }
+      return true;
                                 }
-                    
-                    
-                    
-                    
+bool ParseAsset(Asset &asset, std::string &err , const picojson::object &o){
+      ParseStringProperty(asset.generator,err,o,"generator",false);
+      ParseBooleanProperty(asset.premultipliedAlpha,err,o,"premultipliedAlpha",false);
+
+      ParseStringProperty(asset.version,err,o,"version",false);
+      picojson::object::const_iterator profile = o.find("profile");
+      if(profile!= o.end()){
+        const picojson::value &v = profile->second;
+        if(v.contains("api")& v.get("api").is<std::string>()){
+          asset.profile_api = v.get("api").get<std::string>();
+        }
+        if(v.contains("version") & v.get("version").is<std::string>()) {
+          asset.profile_version = v.get("version").get<std::string>();
+        }
+      }
+    return true;
+}
+
+bool ParseImage(Image &image, std::string &err, const picojson::object &o,
+              const std::string &basedir) {
+
+str::string uri;
+if(!ParseStringProperty(uri,err,o,"uri",true)){
+  return false;
+}
+ParseStringProperty(image.name,err,o,"name",false);
+std::vector<unsigned char>  img;
+if(IsDataURI(uri)){
+  if(!DecodeDataURI(img,uri,0,false)){
+    err += "Failed to decode 'uri' .\n";
+    return false;
+  }
+}
+else {
+  //Assume external file
+  if(!LoadExternalFile(img,err,uri,basedir,0,false)){
+    err += "Failed to load external 'uri' .\n";
+    return false;
+  }
+  if(img.empty()){
+    err+= "File is empty.\n";
+    return false;
+  }
+}
+int w,h,comp;
+unsigned char *data = stbi_load_from_memory(&img.at(0),img.size(),&w,&h ,&comp,0);
+if(!data){
+  err += "Unknown image format.\n";
+  return false;
+}
+
+if(w<1 || h< 1){
+  err+= "Unknown image format.\n";
+  return false;
+}
+image.width = w;
+image.height = h;
+image.component = comp;
+image.image.resize(w* h * comp);
+std::copy(data,data+w*h*comp,image.image.begin());
+return true;
+              }
+
+bool ParseBuffer(Buffer &buffer, std::string &err,const picojson::json::object &o,
+                const std::string &basedir){
+double byteLength;
+if(!ParseNumberProperty(byteLength,err,o,"byteLength",true)){
+  return false;
+}
+std::string uri;
+if(!ParseStringProperty(uri,err,o,"uri",true)){
+  return false;
+}
+picojson::object::const_iterator type = o.find("type");
+if(type!=o.end()){
+  if(type->second.is<std::string>()) {
+    const std::string &ty = (type->second).get<std::string>();
+    if(ty.compare("arraybuffer")== 0){
+
+    }
+  }
+}
+size_t bytes = static_cast<size_t>(byteLength);
+if(IsDataURI(uri)){
+  if(!DecodeDataURI(buffer.data,uri,bytes,true)){
+    err += "Failed to decode 'uri' .\n";
+    return false;
+  }
+  else{
+    if(!LoadExternalFile(buffer.data,err,uri,basedir,bytes,true)){
+      return false;
+    }
+  }
+  ParseStringProperty(buffer.name,err,o,"name",false);
+  return true;
+}
+              
+
+                }
+                              
+ bool ParseBufferView(BufferView &bufferView,std::string &err,
+                      const picojson::object &o) {
+
+string buffer;
+if(!ParseStringProperty(buffer,err,o,"buffer",true)){
+  return false;
+}
+  double byteoffset;
+  if(!ParseNumberProperty(byteoffset,err,o,"byteOffset",true)){
+    return false;
+  }
+  double byteLength = 0.0;
+  ParseNumberProperty(byteLength,err,o,"byteLength",false);
+  
+  double target =0.0;
+  ParseNumberProperty(target,err,o,"target",false);
+  int targetValue= static_cast<int>(target);
+  if((targetValue== TINYGLTF_TARGET_ARRAY_BUFFER) || 
+        (targetValue== TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER)){
+
+        }
+        else{
+          targetValue =0;
+        }
+        bufferView.target = targetValue;
+        ParseStringProperty(bufferView.name,err,o,"name",false);
+
+        bufferView.buffer = buffer;
+        bufferView.byteOffset = static_cast<size_t>(byteOffset);
+        bufferView.byteLength = static_cast<size_t>(byteLength);
+        return true; 
+                      }
+  bool ParseAccessor(Accessor &accessor, std::string &err,
+                    const picojson::object &o)
+                    {
+std::string bufferView;
+if(!ParseStringProperty(bufferView,err,o,"bufferView",true)){
+  return false;
+}
+double byteOffset;
+if(!ParseNumberProperty(byteOffset,err,o,"byteOffset",true)){
+  return false;
+}
+double componentType;
+if(!ParseNumberProperty(componentType,err,o,"componentType",true)){
+  return false;
+}
+double count = 0.0;
+if(!ParseNumberProperty(count,err,o,"count",true)){
+  return false;
+}
+std::string type;
+if(!ParseStringProperty(type,err,o,"type",true)){
+  return false;
+}
+if(type.compare("SCALAR") == 0) {
+  accessor.type == TINYGLTF_TYPE_SCALAR;
+}
+else if(type.compare("VEC2") == 0 ){
+  accessor.type == TINYGLTF_TYPE_VEC2;
+}
+else if(type.compare("VEC3") ==0)
+{
+  accessor.type == TINYGLTF_TYPE_VEC3;
+}
+else if(type.compare("VEC4") ==0)
+{
+  accessor.type == TINYGLTF_TYPE_VEC4;
+}
+else if(type.compare("MAT2") ==0)
+{
+  accessor.type == TINYGLTF_TYPE_MAT2;
+}
+else if(type.compare("MAT3") ==0)
+{
+  accessor.type == TINYGLTF_TYPE_MAT3;
+}
+else if(type.compare("MAT4") ==0)
+{
+  accessor.type == TINYGLTF_TYPE_MAT4;
+}
+else{
+  std::stringstream ss;
+  ss<< "Unsupported 'type' for accessor object . Got \""<< type << "\n";
+  err+=ss.str();
+  return false;
+}
+double byteStride =0.0;
+ParseNumberProperty(byteStride,err,o,"byteStride",false);
+
+accessor.minValues.clear();
+accessor.maxValues.clear();
+ParseNumberArrayProperty(accessor.minValues,err,o,"min",false);
+ParseNumberArrayProperty(accessor.maxValues,err,o,"max",false);
+
+accessor.count = static_cast<size_t>(count);
+accessor.bufferView = bufferView;
+accessor.byteOffset = static_cast<size_t>(byteOffset);
+accessor.byteStride = static_cast<size_t>(byteStride);
+{
+  inr comp = static_cast<size_t>(componentType);
+  if(comp>= TINYGLTF_COMPONENT_TYPE_BYTE && comp <= TINYGLTF_COMPONENT_TYPE_DOUBLE){
+    accessor.componentType = comp;
+
+  }
+  else{
+    std::stringstream ss;
+    ss<< "Invalid 'componentType' in accessor .Got"<< comp <<"\n";
+    err+= ss.str();
+    return false;
+  }
+}
+return true;
+                    }
+bool ParsePrimitive(Primitive &primitive,std::string &err,
+                  const picojson::object &o)
+{
+  if(!ParseStringProperty(primitive.material,err,o,"material",true)){
+    return false;
+  }
+  double mode = static_cast<double>(TINYGLTF_MODE_TRIANGLES);
+  ParseNumberProperty(mode,err,o,"mode",false);
+
+  int primMode = static_cast<int>(mode);
+  if(primMode!= TINYGLTF_MODE_TRIANGLES){
+    err += "Currently TinyGLTFLoader does not support primitive mode other than TRIANGLES.\n";
+    return false;
+  }
+  primitive.mode = primMode;
+  primitive.indices ="";
+  ParseStringProperty(primitive.indices,err,o,"indices",false);
+  primitive.attributes.clear();
+  picojson::object::const_iterator attribsObject = o.find("attributes");
+  if((attribsObject!=o.end()) && (attribsObject->second).get<picojson::object>()){
+    const picojson::object &attribs = (attribsObject->second).get<picojson::object>();
+
+      picojson::object::const_iterator it(attribs.begin());
+      picojson::object::const_iterator itEnd(attribs.end()); 
+    for(;it!= itEnd ;it++){
+      const std::string &name = it->first;
+      if(!(it->second).is<std::string>()){
+        err += "attribute expects string value.\n";
+        return false;
+      }
+      const std::string &value = (it->second).get<std::string>();
+      primitive.attributes[name] = value;
+    }
+  }
+  return true;
+}                  
+bool ParseMesh(Mesh &mesh,std::string &err,const picojson::object &o){
+  ParseStringProperty(mesh.name,err,o,"name",false);
+  mesh.primitives.clear();
+  picojason::object::const_iterator primObject = o.find("primitives");
+  if((primObject!=o.end())&&(primObject->second).is<picojson::array>()){
+    const picojson::array &primArray = 
+    (primObject->second).get<picojson::array>();
+    for(size_t i=0;i< primeArray.size();i++){
+      Primitive primitive;
+      ParsePrimitive(primitive,err,primArray[i].get<picojson::object>());
+      mesh.primitives.push_back(primitive);
+    }
+  }
+  return true;
+} 
+
+bool ParseNode(Node &node,std::string &err,const picojson::object &o){
+  ParseStringProperty(node.name,err,o,"name",false);
+
+  ParseNumberArrayProperty(node.rotation,err,o,"rotation",false);
+  ParseNumberArrayProperty(node.scale,err,o,"scale",false);
+  ParseNumberArrayProperty(node.translation,err,o,"translation",false);
+  ParseNumberArrayProperty(node.matrix,err,o,"matrix",false);
+  ParseNumberArrayProperty(node.meshes,err,o,"meshes",false);
+  
+
+  node.children.clear();
+  picojson::object::const_iterator childrenObject = o.find("children");
+  if((childrenObject!= o.end())&& (childrenObject->second).is<picojson::array>(){
+    const picojson::array &childrenArray = (childrenObject->second).get<picojson::array>();
+    for(size_t i=0;i<childrenArray.size();i++){
+      Node node;
+      if(!childrenArray[i].is<std::string>()){
+        err += "Invalid children ' array.\n";
+        return false;
+      }
+      const std::string &childrenNode = childrenArray[i].get<std::string>();
+      node.children.push_back(childrenNode);
+    }
+  }
+
+  return true;
+}
+
+bool ParseMaterial(Material &material , std::string &err, 
+const picojson::object &o){
+  ParseStringProperty(material.name,err,o,"name",false);
+  ParseStringProperty(material.technique,err,o,"technique",false);
+
+  material.values.clear();
+  picojson::object::const_iterator valuesIt = o.find("values");
+  if((valuesIt!=o.end()) & (valuesIt->second).is<picojson::object>()){
+    const picojson::object &valuesObject =
+    (valuesIt->second).get<picojson::object>();
+    picojson::object::const_iterator it(valuesObject.begin());
+    picojson::object::const_iterator itEnd(valuesObject.end());
+
+    for(;it!= itEnd ;it++){
+      //Assume number values.
+      std::vector<double> values;
+      if(!ParseNumberArrayProperty(values,err,valuesObject,it->first,false)){
+        double value;
+        if(ParseNumberProperty(value,err,valuesObject,it->first,false)){
+          values.push_back(value);      
+        }
+      }
+
+      material.values[it->first] = values;
+    }
+  }
+  return true;
+}
+}
+bool TinyGLTFLoader::LoadFromFile(Scene &scene,std::string &err,
+                                  const std::string &filename){
+
+  std::stringstream ss;
+  std::ifstream ifs(filename.c_str());
+  if(!ifs){
+  ss<< "Failed to open file :" << filename << std::endl;
+  err = ss.str();
+  return false;
+  }
+if(v.contains("scene") && v.get("scene").is<std::string>()){
+  //OK
+}
+else{
+  err += "scene object not found in .gltf \n";
+  return false;
+}
+if(v.contains("scenes") && v.get("scenes").is<picojson::object>()){
+//OK
+}else{
+  err += "node object not found in .gltf \n";
+  return false;
+}
+
+if(v.contains("nodes")&& v.get("nodes").is<picojson::object>()){
+//OK
+}
+else{
+  err+= "accessors object not found in .gltf\n";
+  return false;
+}
+
+if(v.contains("buffers")&& v.get("buffers").is<picojson::object>()){
+  //OK
+}
+else{
+  err+= "buffers object not found in gltf \n";
+  return false;
+}
+if(v.conatains("bufferViews") && v.get("bufferViews").is<picojson::object>())
+{
+  //OK
+}
+else{
+  err += "bufferViews object not found in gltf \n";
+  return false;
+}
+scene.buffers.clear();
+scene.bufferViews.clear();
+scene.accessors.clear();
+scene.nodes.clear();
+scene.defaultScene ="";
+
+
+std::string basedir = GetBaseDir(filename);
+ // 0. Parse Asset 
+ if(v.conatins("asset") && v.get("asset").is<picojson::object>()){
+  const picojson::object &root = v.get("asset").get<picojson::object>();
+  ParseAsset(scene.asset,err,root);
+ }
+
+ //1. Parse Buffer
+ if(v.conatins("buffers") && v.get("buffers").is<picojson::object>()){
+  const picojson::object &root = v.get("buffers").get<picojson::object>();
+
+  picojson::object::const_iterator it(root.begin());
+  picojson::object::const_iterator itEnd(root.end());
+  for(;it!= itEnd;it++){
+    Buffer buffer;
+    if(!ParseBuffer(buffer,err,(it->second).get<picojson::object>(),basedir)){
+      return false;
+    }
+    scene.buffers[it->first] = buffer;
+  }
+ }
+
+ //2 Parse BufferView
+if(v.contains("accessors") && v.get("accessors").is<picojson::object>()){
+
+  const picojson::object &root = v.get("accessors").get<picojson::object>();
+
+  picojson::object::const_iterator it(root.begin());
+  picojson::object::const_iterator itEnd(root.end());
+
+  for(;it!= itEnd;it++)
+  {
+    Accessor accessor;
+    if(!ParseAccessor(accessor,err,(it->second).get<picojson::object>())){
+      return false;
+    }
+    scene.accessors[it->first]= accessor;
+  }
+}
+    //parse Mesh
+    if(v.contains("meshes") && v.get("meshes").is<picojson::object>()){
+      const picojson::object &root = v.get("meshes").get<picojson::object>();
+
+      picojson::object::const_iterator it(root.begin());
+      picojson::object::const_iterator itEnd(root.end());
+
+      for(;it!= itEnd;it++)
+      {
+        Mesh mesh;
+        if(!ParseMesh(mesh,err,(it->second).get<picojson::object>())){
+          return false;
+        }
+        scene.meshes[it->first] = mesh;
+      }
+    }
+
+    //parse Node 
+
+    if(v.contains("nodes") && v.get("nodes").is<picojson::object>()){
+      const picojson::object &root = v.get("nodes").get<picojson::object>();
+
+      picojson::object::const_iterator it(root.begin());
+      picojson::object::const_iterator itEnd(root.end());
+      for(;it!= itEnd;it++)
+      {
+        Node node;
+        if(!ParseNode(node,err,(it->second).get<picojson::object>())){
+          return false;
+        }
+
+        scene.nodes[it->first] = node;
+      }
+    }
+
+    //Parse scene
+
+    if(v.contains("scenes") && v.get("scenes").is<picojson::object>()){
+      const picojson::object &root = v.get("scenes").get<picojson::object>();
+
+      picojson::object::const_iterator it(root.begin());
+      picojson::object::const_iterator itEnd(root.end());
+      for (;it!= itEnd;it++)
+      {
+        const picojson::object &o = (it->second).get<picojson::object>();
+        std::vector<std::string> nodes;
+        if(!ParseStringArrayProperty(nodes,err,o,"nodes",false)){
+          return false;
+        }
+
+        scene.scenes[it->first] = nodes;
+      }
+    }
+    //parse default scenes
+    if(v.contains("scene") && v.get("scene").is<std::string>()){
+      const std::string defaultScene = v.get("scene").get<std::string>();
+      scene.defaultScene = defaultScene;
+    }
+
+    //parse Material
+    if(v.contains("materials") && v.get("materials").is<picojson::object>()){
+      const picojson::object &root = v.get("materials").get<picojson::object>();
+
+      picojson::object::const_iterator it(root.begin());
+      picojson::object::const_iterator itEnd(root.end());
+
+      for(;it!=itEnd;it++)
+      {
+        Material material;
+        if(!ParseMaterial(material,err,(it->second).get<picojson::object>())){
+          return false;
+        }
+
+        scene.materials[it->first] = material;
+      }
+    }
+
+    //Parse Image
+
+    if(v.contains("images") && v.get("images").is<picojson::object>()){
+      const picojson::object &root = v.get("images").get<picojson::object>();
+
+      picojson::object::const_iterator it(root.begin());
+      picojson::object::const_iterator itEnd(root.end());
+      for (;it!= itEnd;it++){
+        Image image;
+        if(!ParseImage(image,err,(it->second).get<picojson::object>(),basedir)){
+          return false;
+        }
+        scene.images[it->first] = image;
+      }
+    }
+    return true;
+}
+
+#endif // TINYGLTF_LOADER_IMPLEMENTATION
+
+#endif // TINY_GLTF_LOADER
 
 
