@@ -27,8 +27,8 @@ namespace tinygltf {
   #define TINYGLTF_TYPE_VEC3 (3)
   #define TINYGLTF_TYPE_VEC4 (4)
   #define TINYGLTF_TYPE_MAT2 (32 + 2)
-  #define TINYGLTF_TYPE_MAT2 (32 + 3)
-  #define TINYGLTF_TYPE_MAT2 (32 + 4)
+  #define TINYGLTF_TYPE_MAT3 (32 + 3)
+  #define TINYGLTF_TYPE_MAT4 (32 + 4)
   #define TINYGLTF_TYPE_SCALAR (64 + 1)
   #define TINYGLTF_TYPE_VECTOR (64 + 4)
   #define TINYGLTF_TYPE_MATRIX (64 + 16)
@@ -67,9 +67,9 @@ namespace tinygltf {
   }BufferView;
 
   typedef struct {
-    std::string BufferView;
+    std::string bufferView;
     std::string name;
-    size_t byteoffset;
+    size_t byteOffset;
     size_t byteStride;
     int componentType; //one of the TINYGLTF_COMPONENT_TYPE type
     size_t count;
@@ -270,7 +270,7 @@ std::string FindFile(const std::vector<std::string> &paths,
 std::string GetBaseDir(const std::string & FileName)
 {
   if(filepath.find_last_of("/\\")! = std::string::npos)
-    return FileN.ame.substr(0,filepath.find_last_of("/\\"));
+    return FileName.substr(0,filepath.find_last_of("/\\"));
     return "";
 }
 //std::string base64_encode(std::string const &s);
@@ -658,12 +658,12 @@ if(IsDataURI(uri)){
  bool ParseBufferView(BufferView &bufferView,std::string &err,
                       const picojson::object &o) {
 
-string buffer;
+std::string buffer;
 if(!ParseStringProperty(buffer,err,o,"buffer",true)){
   return false;
 }
-  double byteoffset;
-  if(!ParseNumberProperty(byteoffset,err,o,"byteOffset",true)){
+  double byteOffset;
+  if(!ParseNumberProperty(byteOffset,err,o,"byteOffset",true)){
     return false;
   }
   double byteLength = 0.0;
@@ -755,7 +755,7 @@ accessor.bufferView = bufferView;
 accessor.byteOffset = static_cast<size_t>(byteOffset);
 accessor.byteStride = static_cast<size_t>(byteStride);
 {
-  inr comp = static_cast<size_t>(componentType);
+  int comp = static_cast<size_t>(componentType);
   if(comp>= TINYGLTF_COMPONENT_TYPE_BYTE && comp <= TINYGLTF_COMPONENT_TYPE_DOUBLE){
     accessor.componentType = comp;
 
