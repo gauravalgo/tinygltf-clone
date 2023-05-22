@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <iostream>
 
-std::string PrintMode(int mode)
+std::string  PrintMode(int mode)
 { 
     if(mode == TINYGLTF_MODE_POINTS){
         return "POINTS";
