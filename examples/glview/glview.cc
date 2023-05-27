@@ -49,7 +49,34 @@ void CheckErrors(std::string desc) {
     exit(20);
   }
 }
+static void SetupGLState(Scene & scene, GLuint progId)
+{
+  std::map<std::string,BufferView>::const_iterator it(scene.bufferViews.begin());
+  std::map<std::string,BufferView>::const_iterator itEnd(scene.bufferViews.end());
 
+  for(;it!= itEnd;it++) {
+    const BufferView & bufferView  = it->second;
+    if(bufferView.target == 0) {
+      continue;
+    }
+
+    const Buffer& buffer = scene.buffers[bufferView.buffer];
+    GLBufferState state;
+    glGenBuffers(1,&state.vb);
+    glBindBuffer(bufferView.target,state.vb);
+    glBufferData(bufferView.tatger,bufferView.byteLength,&buffer.data.at(0)+bufferView.byteOffset,GL_STATIC_DRAW);
+    glBindBuffer(bufferView.target,0);
+    gBufferState[it->first] = state;
+
+  }
+  glUseProgram(progId);
+  GLint vtloc = glGetAttribLocation(progId,"in_vertex");
+  GLint nrmloc = glGetAttribLocation(progId,"in_normal");
+  gGLProgramState.attribs["POSITION"]= vtloc;
+  gGLProgramState.attribs["NORMAL"]= nrmloc;
+
+
+}
 int main(int argc,char **argv)
 {
 
@@ -116,7 +143,28 @@ int main(int argc,char **argv)
   {
       GLint vtxLoc = glGetAttribLocation(progId,"in_vertex");
       if(vtxLoc < 0) {
-        printf("vertex loc ")
+        printf("vertex loc not found\n ");
+        exit(-1);
       }
+    
+      GLint tnLoc = glGetAttribLocation(progId,"in_normal");
+      if(tnLoc < 0 ) {
+        printf("normal loc not found . \n");
+        exit(-1);
+      }
+  }
+  glUseProgram(progId);
+  CheckErrors("useProgram");
+
+  SetupGLState(scene , progId);
+  while(glfwWindowShouldClose(window) == GL_FALSE) {
+    glfwPollEvents();
+    glClearColor(0.1f,0.2f,0.3f,1,0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glEnable(GL_DEPTH_TEST);
+
+    GLfloat mat[4][4];
+    build_rotmatrix(mat,curr_quat);
   }
 }
