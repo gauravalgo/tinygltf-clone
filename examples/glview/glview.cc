@@ -77,6 +77,106 @@ static void SetupGLState(Scene & scene, GLuint progId)
 
 
 }
+void DrawMesh(Scene& scene , const Mesh& mesh )
+{
+  for(size_t i =0 ; i< mesh.primitives.size();i++)
+  {
+    const Primitive& primitive = mesh.primitives[i];
+    if(primitive.indices.empty()) return;
+    
+    std::map<std::string,std::string>::const_iterator it(primitive.attributes.begin());
+    std::map<std::string,std::string>::const_iterator itEnd(primitive.attributes.end());
+    
+    for(;it!= itEnd ;it++) {
+      const Accessor& accessor = scene.accessors[it->second];
+      glBindBuffer(GL_ARRAY_BUFFER,gBufferState[accessor.bufferView].vb);
+      CheckErrors("bind buffer");
+
+      int count =1 ;
+      if(accessor.type == TINYGLTF_TYPE_SCALAR) {
+        count =1;
+      }
+      else if(accessor.type == TINYGLTF_TYPE_VEC2) {
+        count =2;
+      }
+      else if(accessor.type == TINYGLTF_TYPE_VEC3) {
+        count =3;
+
+      }
+      else if(accessor.type == TINYGLTF_TYPE_VEC4) {
+        count =4;
+      }
+
+      if((it->first.compare("POSITION") == 0 || (it->first.compare("NORMAL") == 0))){
+        glVertexAttribPointer(gGLProgramState.attribs[it->first],count,accessor.componentType,GL_FALSE,accessor.byteStride,BUFFER_OFFSET(accessor.byteOffset));
+       CheckErrors("vertex attrib pointer");
+       glEnableVertexAttribArray(gGLProgramState.attribs[it->first]);
+       CheckErrors("enable vertex attrib array");
+      }
+    }
+    const Accessor& indexAccessor = scene.accessors[primitive.indices];
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,gBufferState[indexAccessor.bufferView].vb);
+    CheckErrors("bind buffer");
+    int mode =-1;
+    if(primitive.mode == TINYGLTF_MODE_TRIANGLES) {
+      mode = GL_TRIANGLES;
+    }
+    else if(primitive.mode == TINYGLTF_MODE_TRIANGLE_STRIP)
+    {
+      mode = GL_TRIANGLE_STRIP;
+    }
+    else if(primitive.mode == TINYGLTF_MODE_TRIANGLE_FAN){
+      mode = GL_TRIANGLE_FAN;
+    }
+    else if(primitive.mode == TINYGLTF_MODE_POINTS)
+    {
+      mode = GL_POINTS;
+    }
+    else if(primitive.mode == TINYGLTF_MODE_LINE) {
+      mode = GL_LINES;
+    }
+    else if(primitive.mode == TINYGLTF_MODE_LINE_LOOP) {
+      mode = GL_LINE_LOOP;
+    };
+    glDrawElements(mode,indexAccessor.count,indexAccessor.componentType,BUFFER_OFFSET(indexAccessor.byteOffset));
+    CheckErrors("drawElements");
+    {
+      std::map<std::string, std::string>::const_iterator it (primitive.attributes.begin());
+      std::map<std::string, std::string>::const_iterator itEnd(primitive.attributes.end());
+
+      for(;it!= itEnd;it++) {
+        if((it->first.compare("POSITION")==0) || (it->first.compare("NORMAL") == 0)) {
+          glDisableVertexAttribArray(gGLProgramState.attribs[it->first]);
+        }
+      }
+    }
+    }
+  }
+  
+}
+void DrawScene(Scene& scene) {
+  std::map<std::string,std::string>::const_iterator it(primitive.attributes.begin());
+  std::map<std::string,std::string>::const_iterator itEnd(primitive.attributes.end());
+  for(;it!=itEnd;it++)
+  {
+  DrawMesh(scene,it->second);    
+  }
+
+}
+static void Init() {
+  trackball (curr_quat,0,0,0,0);
+  eye[0] = 0.0f;
+  eye[1] = 0.0f;
+  eye[2] = CAM_Z;
+
+  lookat[0] = 0.0f;
+  lookat[1] = 0.0f;
+  lookat[2] = 0.0f;
+
+  up[0] = 0.0f;
+  up[1] = 1.0f;
+  up[2] = 0.0f;
+}
 int main(int argc,char **argv)
 {
 
@@ -93,7 +193,7 @@ int main(int argc,char **argv)
   TinyGLTFLoader loader;
   std::string err;
 
-  bool ret = loader.LoadFromFile(scene , err,argvl[1]);
+  bool ret = loader.LoadFromFile(scene , err,argv[1]);
   if(!err.empty()){
     printf("Err: %s \n",err.c_str());
   }
@@ -163,8 +263,27 @@ int main(int argc,char **argv)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
-
+    
     GLfloat mat[4][4];
     build_rotmatrix(mat,curr_quat);
+    //camera (define it in projection matrix)
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    gluLookAt(eye[0],eye[1],eye[2],look_at[0],look_at[1],look_at[2],up[0],up[1],up[2]);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glMultMatrixd(&mat[0][0]);
+
+    glScalef(scale,scale,scale);
+
+    DrawScene(scene);
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    glFlush();
+
+    glfwSwapBuffers(window);
+
   }
 }
