@@ -49,6 +49,89 @@ void CheckErrors(std::string desc) {
     exit(20);
   }
 }
+bool LoadShader(GLenum shaderType, //GL_VERTEX_SHADER or GL_FRAMENT_SHADER(or
+                                  //maybe GL_COMPUTE_SHADER)
+                                  GLuint &shader,const char * shaderSourceFilename){
+                                    GLint v val = 0;
+                                    //free old shader / program
+                                    if(shader!=0) {
+                                      glDeleteShader(shader);
+                                    }
+    GLint val =0;
+    if(shader!=0) {
+      glDeleteShader(shader);
+    }
+    std::vector<GLchar> srcbuf;
+    FILE *fp = fopen(shaderSourceFilename,"rb");
+    if(!fp){
+      fprintf(stderr,"failed to load shader : %s\n",shaderSourceFilename);
+      return false;
+      
+    }
+    fseek(fp,0,SEEK_END);
+    size_t len = ftell(fp);
+    rewind(fp);
+    srcbuf.resize(len +1 );
+    len = fread(&srcbuf.at(0),1,len,fp);
+
+    srcbuf[len] =0;
+    fclose(fp);
+
+    const GLchar * srcs[1];
+    srcs[0] = &srcbuf.at(0);
+
+    shader = glCreateShader(shaderType);
+    glShaderSource(shader,1,srcs,NULL);
+    glCompileShader(shader);
+    glGetShaderiv(shader,GL_COMPILE_STATUS,&val);
+    if(val!= GL_TRUE) {
+      char log[4096];
+      GLsizei msglen;
+      glGetShaderInfoLog(shader,4096,&msglen,log);
+      printf("%s\n",log);
+      printf("ERR: Failed to load or compile shader [%s]\n",
+      shaderSourceFilename);
+      return false;
+    }
+    printf("Load shader [%s] OK \n",shaderSourceFilename);
+    return true;
+
+                                  }
+
+bool LinkShader(GLuint &prog,GLuint &vertShader,GLuint &fragShader) {
+  GLint val = 0;
+  if(prog !=0) {
+    glDeleteProgram(prog);
+  }
+  prog = glCreateProgram();
+  glAttachShader(prog,vertShader);
+  glAttachShader(prog,fragShader);
+  glLinkProgram(prog);
+
+  glGetProgramiv(prog,GL_LINK_STATUS,&val);
+  assert(val == GL_TRUE && "failed to link Shader");
+
+  printf("Link shader OK \n");
+  return true;
+}
+void reshapeFunc(GLFWwindow *window,int w,int h)
+{
+  glViewport(0,0,w,h);
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  gluPerspective(45.0,(float)w/(float)h,0.1f,(float)1000.0f);
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+
+  width = w;
+  height =h;
+}
+void keyboardFunc(GLFWwindow *window , int key ,int scancodem ,int action,int mods) {
+  if(action == GLFW_PRESS || action == GLFW_REPEAT) {
+    //close window
+    if(key == GLFW_KEY_Q || key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window,GL_TRUE);
+  }
+}
 static void SetupGLState(Scene & scene, GLuint progId)
 {
   std::map<std::string,BufferView>::const_iterator it(scene.bufferViews.begin());
@@ -64,7 +147,7 @@ static void SetupGLState(Scene & scene, GLuint progId)
     GLBufferState state;
     glGenBuffers(1,&state.vb);
     glBindBuffer(bufferView.target,state.vb);
-    glBufferData(bufferView.tatger,bufferView.byteLength,&buffer.data.at(0)+bufferView.byteOffset,GL_STATIC_DRAW);
+    glBufferData(bufferView.target,bufferView.byteLength,&buffer.data.at(0)+bufferView.byteOffset,GL_STATIC_DRAW);
     glBindBuffer(bufferView.target,0);
     gBufferState[it->first] = state;
 
@@ -76,6 +159,72 @@ static void SetupGLState(Scene & scene, GLuint progId)
   gGLProgramState.attribs["NORMAL"]= nrmloc;
 
 
+}
+void clickFunc(GLFWwindow * window,int button , int action, int mods)
+{
+  double x,y;
+  glfwGetCursorPos(window,&x,&y);
+  
+  if(button == GLFW_MOUSE_BUTTON_LEFT)
+  {
+    mouseLeftPressed = true;
+    if(action == GLFW_PRESS)
+    {
+      int id = -1;
+      if(id < 0) { //outside UI
+        trackball(prev_quat,0.0,0.0,0.0,0.0);
+
+      }
+    }
+    else if(action == GLFW_RELEASE){
+      mouseLeftPressed = false;
+    }
+  }
+  if(button == GLFW_MOUSE_BUTTON_RIGHT)
+  {
+    if(action == GLFW_PRESS){
+      mouseRightPressed = true;
+    }
+    else if(action == GLFW_RELEASE){
+      mouseRightPressed = false;
+    }
+
+  }
+  if(button == GLFW_MOUSE_BUTTON_MIDDLE){
+    if(action == GLFW_PRESS){
+      mouseMiddlePressed = true;
+    }
+    else if(action == GLFW_RELEASE)
+    {
+      mouseMiddlePressed = false;
+    }
+  }
+}
+void motionFunc(GLFWwindow* window,double mouse_x,double mouse_y) {
+  float rotScale = 1.0f;
+  float transScale = 2.0f;
+  if(mouseLeftPressed) {
+    trackball(prev_quat,
+            rotScale * (2.0f *prevMouseX - width) / (float) width ,
+            rotScale * (height - 2.0f * prevMouseX) / (float) height,
+            rotScale * (2.0f * mouse_x - width) / (float) width,
+            add_quats(prev_quat,curr_quat,curr_quat);
+
+
+  }
+  else if(mouseMiddlePressed) {
+    eye[0] += transScale * (mouse_x - prevMouseX) / (float)width;
+    lookat[0] += -transScale * (mouse_x - prevMouseX) / (float)width;
+    eye[1] += transScale * (mouse_y - prevMouseY) / (float)height;
+    lookat[1] += transScale * (mouse_y - prevMouseY) (float)height;
+  }
+  else if(mouseRightPressed) {
+    eye[2] += transScale * (mouse_y - prevMouseY) / (float)height;
+    lookat[2] += transScale * (mouse_y - prevMouseY) / (float) height;
+  }
+  //Update mouse point
+  prevMouseX = mouse_x;
+  prevMouseY = mouse_y;
 }
 void DrawMesh(Scene& scene , const Mesh& mesh )
 {
@@ -286,4 +435,5 @@ int main(int argc,char **argv)
     glfwSwapBuffers(window);
 
   }
+  glfwTerminate();
 }
