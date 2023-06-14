@@ -12,8 +12,8 @@ solution "glview"
 		includedirs { "../../" }
 
 		configuration { "linux" }
-			 linkoptions { "`pkg-config --libs glfw3`" }
-			 links { "GL", "GLU", "m", "GLEW" }
+		linkoptions {"`pkg-config --static --libs x11 glew glfw3`" }  
+		links {"GL", "GLU" , "m" , "GLEW"}
 
 		configuration { "windows" }
 			 links { "glfw3", "gdi32", "winmm", "user32", "GLEW", "glu32","opengl32", "kernel32" }
